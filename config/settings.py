@@ -80,45 +80,94 @@ HEALTH_DB_SCHEMA = os.getenv("HEALTH_DB_SCHEMA", "public")
 HEALTH_DB_TABLE = os.getenv("HEALTH_DB_TABLE", "health_summary")
 
 
-def _build_database_config() -> dict:
-    database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        return {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("POSTGRES_DB", "postgres"),
-            "USER": os.getenv("POSTGRES_USER", "postgres"),
-            "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
-            "HOST": os.getenv("POSTGRES_HOST", "localhost"),
-            "PORT": os.getenv("POSTGRES_PORT", "5432"),
-            "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "600")),
-            "OPTIONS": {
-                "connect_timeout": 10,
-                "options": f"-c search_path={HEALTH_DB_SCHEMA},public",
-            },
-        }
+def _on_railway() -> bool:
+    return bool(os.getenv("RAILWAY_ENVIRONMENT") or _railway_public_domain())
 
-    database_url = _normalize_database_url(database_url)
-    parsed = urlparse(database_url)
-    query_params = dict(parse_qsl(parsed.query))
 
-    options: dict = {
+def _resolve_database_url() -> str:
+    """Railway/Supabase may expose the URL under different variable names."""
+    for name in ("DATABASE_URL", "DATABASE_PRIVATE_URL", "POSTGRES_URL"):
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _postgres_options() -> dict:
+    return {
         "connect_timeout": 10,
         "options": f"-c search_path={HEALTH_DB_SCHEMA},public",
     }
 
-    hostname = (parsed.hostname or "").lower()
-    if "supabase" in hostname or _env_bool("DATABASE_SSL", True):
-        options["sslmode"] = query_params.get("sslmode", "require")
+
+def _build_database_from_env_vars() -> dict | None:
+    """Use PGHOST / POSTGRES_* when a URL is not provided (e.g. Railway Postgres plugin)."""
+    host = (
+        os.getenv("PGHOST", "").strip()
+        or os.getenv("POSTGRES_HOST", "").strip()
+    )
+    if not host or host in {"localhost", "127.0.0.1", "::1"}:
+        return None
+
+    options = _postgres_options()
+    if _env_bool("DATABASE_SSL", True):
+        options["sslmode"] = os.getenv("DATABASE_SSLMODE", "require")
 
     return {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": parsed.path.lstrip("/") or "postgres",
-        "USER": parsed.username or "postgres",
-        "PASSWORD": parsed.password or "",
-        "HOST": parsed.hostname or "localhost",
-        "PORT": str(parsed.port or 5432),
+        "NAME": os.getenv("PGDATABASE", os.getenv("POSTGRES_DB", "postgres")),
+        "USER": os.getenv("PGUSER", os.getenv("POSTGRES_USER", "postgres")),
+        "PASSWORD": os.getenv("PGPASSWORD", os.getenv("POSTGRES_PASSWORD", "")),
+        "HOST": host,
+        "PORT": os.getenv("PGPORT", os.getenv("POSTGRES_PORT", "5432")),
         "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "600")),
         "OPTIONS": options,
+    }
+
+
+def _build_database_config() -> dict:
+    database_url = _resolve_database_url()
+    if database_url:
+        database_url = _normalize_database_url(database_url)
+        parsed = urlparse(database_url)
+        query_params = dict(parse_qsl(parsed.query))
+
+        options = _postgres_options()
+        hostname = (parsed.hostname or "").lower()
+        if "supabase" in hostname or _env_bool("DATABASE_SSL", True):
+            options["sslmode"] = query_params.get("sslmode", "require")
+
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": parsed.path.lstrip("/") or "postgres",
+            "USER": parsed.username or "postgres",
+            "PASSWORD": parsed.password or "",
+            "HOST": parsed.hostname or "localhost",
+            "PORT": str(parsed.port or 5432),
+            "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "600")),
+            "OPTIONS": options,
+        }
+
+    from_env = _build_database_from_env_vars()
+    if from_env:
+        return from_env
+
+    if _on_railway() or not _env_bool("DJANGO_DEBUG", True):
+        raise ImproperlyConfigured(
+            "DATABASE_URL is not set. In Railway → Variables, add your Supabase pooler URL "
+            "(port 6543), for example: "
+            "postgresql://postgres.PROJECT_REF:PASSWORD@aws-REGION.pooler.supabase.com:6543/postgres"
+        )
+
+    return {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("POSTGRES_DB", "postgres"),
+        "USER": os.getenv("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
+        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "600")),
+        "OPTIONS": _postgres_options(),
     }
 
 
@@ -251,7 +300,7 @@ LOGGING = {
     },
 }
 
-IS_RAILWAY = bool(os.getenv("RAILWAY_ENVIRONMENT") or _railway_public_domain())
+IS_RAILWAY = _on_railway()
 
 if not DEBUG:
     if SECRET_KEY in {"dev-only-change-in-production", "change-me-in-production", ""}:

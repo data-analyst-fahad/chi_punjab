@@ -141,6 +141,7 @@ Change passwords immediately via Railway variables and redeploy.
 | **Application failed to respond** | Check Deploy Logs; ensure Gunicorn binds to `$PORT` |
 | **DisallowedHost** | Verify `RAILWAY_PUBLIC_DOMAIN` is set; add domain to `DJANGO_ALLOWED_HOSTS` |
 | **CSRF verification failed** | Leave `CSRF_TRUSTED_ORIGINS` empty, or use `https://your-app.up.railway.app` (must include `https://`) |
+| **Database connection refused (localhost:5432)** | `DATABASE_URL` is missing in Railway Variables. Add your Supabase pooler URL (port **6543**) |
 | **Database connection error** | Use Supabase **pooler** URL (port 6543), not direct `db.*.supabase.co` |
 | **ImproperlyConfigured SECRET_KEY** | Set `DJANGO_SECRET_KEY` in Railway variables |
 | **Static files 404** | Check build logs for `collectstatic`; WhiteNoise serves from `staticfiles/` |

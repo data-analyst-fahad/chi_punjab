@@ -3,6 +3,7 @@
 set -euo pipefail
 
 echo "==> Running database migrations"
+python manage.py shell -c "from django.conf import settings; print('Database host:', settings.DATABASES['default'].get('HOST'))"
 python manage.py migrate --noinput
 
 echo "==> Collecting static files"
