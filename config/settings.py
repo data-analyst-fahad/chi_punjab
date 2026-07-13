@@ -125,6 +125,31 @@ def _apply_health_db_options(config: dict, *, ssl_required: bool) -> dict:
     return config
 
 
+def _configure_supabase_pooler(config: dict) -> dict:
+    """
+    Supabase pooler: use short-lived connections (CONN_MAX_AGE=0) and
+    username postgres.PROJECT_REF — not plain 'postgres'.
+    """
+    host = (config.get("HOST") or "").lower()
+    if "pooler.supabase.com" not in host:
+        return config
+
+    user = config.get("USER") or ""
+    port = int(config.get("PORT") or 5432)
+
+    if _is_production() and user == "postgres":
+        raise ImproperlyConfigured(
+            "Supabase pooler DATABASE_URL must use username postgres.PROJECT_REF, not 'postgres'. "
+            "In Supabase → Project Settings → Database, copy the full Transaction pooler URI."
+        )
+
+    if os.getenv("DB_CONN_MAX_AGE") is None:
+        # Transaction pooler (6543) requires CONN_MAX_AGE=0 for Django.
+        config["CONN_MAX_AGE"] = 0 if port == 6543 else config.get("CONN_MAX_AGE", 600)
+
+    return config
+
+
 def _build_database_config() -> dict:
     database_url = _resolve_database_url()
     ssl_required = _env_bool("DATABASE_SSL", True)
@@ -152,7 +177,8 @@ def _build_database_config() -> dict:
             "Set DATABASE_URL to your Supabase pooler URL in Railway Variables."
         )
 
-    return _apply_health_db_options(config, ssl_required=ssl_required)
+    config = _apply_health_db_options(config, ssl_required=ssl_required)
+    return _configure_supabase_pooler(config)
 
 
 SECRET_KEY = (

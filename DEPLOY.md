@@ -76,7 +76,7 @@ In Railway → your service → **Variables**, add:
 
 | Variable | Value | Required |
 |----------|-------|----------|
-| `DATABASE_URL` | `postgresql://postgres.REF:PASSWORD@aws-1-ap-south-1.pooler.supabase.com:6543/postgres` | Yes |
+| `DATABASE_URL` | Full Supabase **Transaction pooler** URI from dashboard (port **6543**, user `postgres.PROJECT_REF`) | Yes |
 | `DJANGO_SECRET_KEY` | Generate with `python -c "import secrets; print(secrets.token_urlsafe(50))"` | Yes |
 | `DJANGO_DEBUG` | `false` | Yes |
 | `HEALTH_DB_SCHEMA` | `public` | Yes |
@@ -89,9 +89,19 @@ In Railway → your service → **Variables**, add:
 | `DASHBOARD_CACHE_TTL` | `300` | No |
 | `WEB_CONCURRENCY` | `2` | No |
 
-### Do NOT add Railway Postgres if using Supabase
+### Supabase DATABASE_URL format
 
-Use your **Supabase pooler URL** as `DATABASE_URL`. Do not attach Railway's PostgreSQL plugin unless you migrate data.
+Copy the **Transaction pooler** connection string from Supabase (not Session, not direct `db.*`):
+
+```
+postgresql://postgres.YOUR_PROJECT_REF:YOUR_PASSWORD@aws-1-ap-south-1.pooler.supabase.com:6543/postgres
+```
+
+Important:
+- Username must be `postgres.PROJECT_REF` (not plain `postgres`)
+- Port must be **6543** for transaction pooler
+- If your database password contains `@`, `#`, `%`, or `&`, [URL-encode](https://www.urlencoder.org/) it before pasting into Railway
+- Reset the database password in Supabase if you are unsure of the current value
 
 ---
 
@@ -141,6 +151,7 @@ Change passwords immediately via Railway variables and redeploy.
 | **Application failed to respond** | Check Deploy Logs; ensure Gunicorn binds to `$PORT` |
 | **DisallowedHost** | Verify `RAILWAY_PUBLIC_DOMAIN` is set; add domain to `DJANGO_ALLOWED_HOSTS` |
 | **CSRF verification failed** | Leave `CSRF_TRUSTED_ORIGINS` empty, or use `https://your-app.up.railway.app` (must include `https://`) |
+| **password authentication failed for user "postgres"** | Wrong `DATABASE_URL` — re-copy Supabase Transaction pooler URI; URL-encode special chars in password; username must be `postgres.PROJECT_REF` |
 | **Database connection refused (localhost:5432)** | `DATABASE_URL` is missing in Railway Variables. Add your Supabase pooler URL (port **6543**) |
 | **Database connection error** | Use Supabase **pooler** URL (port 6543), not direct `db.*.supabase.co` |
 | **ImproperlyConfigured SECRET_KEY** | Set `DJANGO_SECRET_KEY` in Railway variables |

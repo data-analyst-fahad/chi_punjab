@@ -5,6 +5,9 @@ set -euo pipefail
 echo "==> Running database migrations"
 python manage.py migrate --noinput
 
+echo "==> Verifying database connection"
+python manage.py shell -c "from django.db import connection; connection.ensure_connection(); print('Database OK:', connection.settings_dict['HOST'], connection.settings_dict['PORT'], connection.settings_dict['USER'])"
+
 echo "==> Collecting static files"
 python manage.py collectstatic --noinput
 
