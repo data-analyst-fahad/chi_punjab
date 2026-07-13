@@ -3,7 +3,6 @@
 set -euo pipefail
 
 echo "==> Running database migrations"
-python manage.py shell -c "from django.conf import settings; print('Database host:', settings.DATABASES['default'].get('HOST'))"
 python manage.py migrate --noinput
 
 echo "==> Collecting static files"
@@ -11,7 +10,6 @@ python manage.py collectstatic --noinput
 
 echo "==> Ensuring dashboard users exist"
 python manage.py setup_dashboard_users
-python manage.py shell -c "from django.contrib.auth import get_user_model; print('Auth users:', list(get_user_model().objects.values_list('username', flat=True)))"
 
 echo "==> Starting Gunicorn on port ${PORT:-8000}"
 exec gunicorn config.wsgi:application \

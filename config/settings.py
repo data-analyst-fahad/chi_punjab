@@ -155,7 +155,11 @@ def _build_database_config() -> dict:
     return _apply_health_db_options(config, ssl_required=ssl_required)
 
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-change-in-production")
+SECRET_KEY = (
+    os.getenv("DJANGO_SECRET_KEY")
+    or os.getenv("SECRET_KEY")
+    or "dev-only-change-in-production"
+)
 DEBUG = _env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = _build_allowed_hosts()
 
@@ -288,7 +292,10 @@ IS_RAILWAY = _on_railway()
 
 if not DEBUG:
     if SECRET_KEY in {"dev-only-change-in-production", "change-me-in-production", ""}:
-        raise ImproperlyConfigured("Set a strong DJANGO_SECRET_KEY environment variable for production.")
+        raise ImproperlyConfigured(
+            "Set DJANGO_SECRET_KEY in Railway Variables (production requires a strong secret). "
+            "Generate one: python -c \"import secrets; print(secrets.token_urlsafe(50))\""
+        )
 
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", IS_RAILWAY)
