@@ -1,0 +1,102 @@
+# Deploy Community Health Inspector Analytics Dashboard to Railway on push to main.
+#
+# Required GitHub repository secrets:
+#   RAILWAY_TOKEN        — Project token from Railway (Settings → Tokens)
+#   RAILWAY_SERVICE_ID   — Service UUID from Railway service settings
+#
+# Optional secrets:
+#   RAILWAY_ENVIRONMENT_ID — Environment UUID (production); recommended for --ci mode
+#
+# If your GitHub repo root is the parent `CHIs/` folder, set:
+#   defaults.run.working-directory: healthcare_analytics_dashboard
+
+name: Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: railway-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  # Set if deploying from a monorepo subdirectory (e.g. CHIs/healthcare_analytics_dashboard)
+  APP_DIR: .
+
+jobs:
+  validate:
+    name: Validate Django app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: ${{ env.APP_DIR }}/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Django system check
+        env:
+          DJANGO_SECRET_KEY: ci-validation-key-not-used-in-production
+          DJANGO_DEBUG: "true"
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          HEALTH_DB_SCHEMA: public
+          HEALTH_DB_TABLE: health_summary
+        run: python manage.py check
+
+      - name: Verify static files collect
+        env:
+          DJANGO_SECRET_KEY: ci-validation-key-not-used-in-production
+          DJANGO_DEBUG: "true"
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+        run: python manage.py collectstatic --noinput --clear
+
+  deploy:
+    name: Deploy to Railway
+    needs: validate
+    runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy with Railway CLI
+        env:
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$RAILWAY_SERVICE_ID" ]; then
+            echo "Missing RAILWAY_TOKEN or RAILWAY_SERVICE_ID GitHub secrets."
+            exit 1
+          fi
+          if [ -n "$RAILWAY_ENVIRONMENT_ID" ]; then
+            railway up --ci --detach \
+              --service="$RAILWAY_SERVICE_ID" \
+              --environment="$RAILWAY_ENVIRONMENT_ID"
+          else
+            railway up --ci --detach \
+              --service="$RAILWAY_SERVICE_ID"
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "Deployment triggered successfully."
+          echo "Monitor build logs in the Railway dashboard."

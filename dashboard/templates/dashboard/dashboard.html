@@ -1,0 +1,170 @@
+{% extends "dashboard/base.html" %}
+{% load static %}
+{% block title %}Dashboard — Community Health Inspector Analytics Dashboard{% endblock %}
+
+{% block content %}
+<section class="filters-card card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Date Range</label>
+        <select id="datePreset" class="form-select">
+          {% for p in filter_options.presets %}
+          <option value="{{ p.value }}" {% if p.value == 'all_time' %}selected{% endif %}>{{ p.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 custom-date d-none">
+        <label class="form-label">Start Date</label>
+        <input type="date" id="startDate" class="form-control">
+      </div>
+      <div class="col-md-2 custom-date d-none">
+        <label class="form-label">End Date</label>
+        <input type="date" id="endDate" class="form-control">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">District</label>
+        <select id="districtFilter" class="form-select">
+          <option value="">All Districts</option>
+          {% for d in filter_options.districts %}
+          <option value="{{ d }}">{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button id="applyFilters" class="btn btn-primary w-100">
+          <i class="bi bi-funnel me-1"></i>Apply
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="kpiGrid" class="row g-3 mb-4"></section>
+
+<ul class="nav nav-tabs mb-3" id="dashboardTabs" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabOverview">Overview</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAnc">ANC</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabMi">Maternal Immunization</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCn">Child Nutrition</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCi">Child Immunization</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPnc">PNC</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabFp">Family Planning</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabGeo">Geographic</button></li>
+</ul>
+
+<div class="tab-content">
+  <div class="tab-pane fade show active" id="tabOverview">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div id="chartOverviewMothers" class="chart-box chart-box-overview"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div id="chartOverviewAnc" class="chart-box chart-box-overview"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div id="chartOverviewChildren" class="chart-box chart-box-overview"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div id="chartOverviewPnc" class="chart-box chart-box-overview"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div id="chartOverviewFpCounsel" class="chart-box chart-box-overview"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div id="chartOverviewFpCommodity" class="chart-box chart-box-overview"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabAnc">
+    <div class="row g-3">
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartTrimester" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartBmi" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartHtn" class="chart-box"></div></div></div></div>
+      <div class="col-md-6"><div class="card chart-card"><div class="card-body"><div id="chartDiabetesTrend" class="chart-box"></div></div></div></div>
+      <div class="col-md-6"><div class="card chart-card"><div class="card-body"><div id="chartAncDistrict" class="chart-box"></div></div></div></div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabMi">
+    <div class="row g-3">
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartMiMin" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartMiFull" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartMiTrend" class="chart-box"></div></div></div></div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabCn">
+    <div class="row g-3">
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartSam" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartMam" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartNutritionTrend" class="chart-box"></div></div></div></div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabCi">
+    <div class="row g-3">
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartCiCoverage" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartCiDefaulter" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartCiTrend" class="chart-box"></div></div></div></div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabPnc">
+    <div class="row g-3">
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartPncEbf" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartPncCounsel" class="chart-box"></div></div></div></div>
+      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartPncTrend" class="chart-box"></div></div></div></div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabFp">
+    <div class="row g-3">
+      <div class="col-md-6"><div class="card chart-card"><div class="card-body"><div id="chartFpMix" class="chart-box"></div></div></div></div>
+      <div class="col-md-6"><div class="card chart-card"><div class="card-body"><div id="chartFpCommodity" class="chart-box"></div></div></div></div>
+    </div>
+  </div>
+  <div class="tab-pane fade" id="tabGeo">
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="card"><div class="card-header bg-success text-white">Top Performing Districts</div>
+        <ul id="topDistricts" class="list-group list-group-flush"></ul></div>
+      </div>
+      <div class="col-md-6">
+        <div class="card"><div class="card-header bg-danger text-white">Lowest Performing Districts</div>
+        <ul id="bottomDistricts" class="list-group list-group-flush"></ul></div>
+      </div>
+    </div>
+    <div class="card chart-card mb-3"><div class="card-body"><div id="chartGeoCompare" class="chart-box"></div></div></div>
+    <div class="card"><div class="card-body table-responsive">
+      <table class="table table-sm table-hover" id="geoRankingTable">
+        <thead><tr><th>Rank</th><th>District</th><th>Score</th><th>ANC</th><th>Immunized</th><th>SAM</th><th>PNC</th><th>FP</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'dashboard/js/dashboard.js' %}?v=8"></script>
+{% endblock %}

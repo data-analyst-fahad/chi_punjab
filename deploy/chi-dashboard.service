@@ -1,0 +1,15 @@
+[Unit]
+Description=CHI Healthcare Analytics Dashboard (Gunicorn)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/chi-dashboard
+EnvironmentFile=/var/www/chi-dashboard/.env
+ExecStart=/var/www/chi-dashboard/.venv/bin/gunicorn config.wsgi:application -c deploy/gunicorn.conf.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
