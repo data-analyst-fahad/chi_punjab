@@ -84,7 +84,7 @@ In Railway → your service → **Variables**, add:
 | `SUPERADMIN_PASSWORD` | Strong password for superadmin | Yes |
 | `DASHBOARD_VIEWER_PASSWORD` | Strong password for H&PD | Yes |
 | `DJANGO_ALLOWED_HOSTS` | `.railway.app` (optional — auto-configured) | No |
-| `CSRF_TRUSTED_ORIGINS` | Leave empty — auto from `RAILWAY_PUBLIC_DOMAIN` | No |
+| `CSRF_TRUSTED_ORIGINS` | Leave **empty** (auto from Railway). If set, use full URL: `https://your-app.up.railway.app` | No |
 | `DATABASE_SSL` | `true` | No (default) |
 | `DASHBOARD_CACHE_TTL` | `300` | No |
 | `WEB_CONCURRENCY` | `2` | No |
@@ -140,7 +140,7 @@ Change passwords immediately via Railway variables and redeploy.
 |-------|----------|
 | **Application failed to respond** | Check Deploy Logs; ensure Gunicorn binds to `$PORT` |
 | **DisallowedHost** | Verify `RAILWAY_PUBLIC_DOMAIN` is set; add domain to `DJANGO_ALLOWED_HOSTS` |
-| **CSRF verification failed** | Railway HTTPS is auto-added; set `CSRF_TRUSTED_ORIGINS=https://your-app.up.railway.app` |
+| **CSRF verification failed** | Leave `CSRF_TRUSTED_ORIGINS` empty, or use `https://your-app.up.railway.app` (must include `https://`) |
 | **Database connection error** | Use Supabase **pooler** URL (port 6543), not direct `db.*.supabase.co` |
 | **ImproperlyConfigured SECRET_KEY** | Set `DJANGO_SECRET_KEY` in Railway variables |
 | **Static files 404** | Check build logs for `collectstatic`; WhiteNoise serves from `staticfiles/` |

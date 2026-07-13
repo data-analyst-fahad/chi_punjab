@@ -19,11 +19,13 @@ class Command(BaseCommand):
 
         superadmin_username = os.getenv("SUPERADMIN_USERNAME", "superadmin")
         superadmin_password = os.getenv("SUPERADMIN_PASSWORD", "")
+        viewer_username = os.getenv("DASHBOARD_VIEWER_USERNAME", DASHBOARD_VIEWER_USERNAME)
         viewer_password = os.getenv("DASHBOARD_VIEWER_PASSWORD", "")
 
         if os.getenv("RAILWAY_ENVIRONMENT") and (not superadmin_password or not viewer_password):
             self.stdout.write(self.style.WARNING(
-                "Set SUPERADMIN_PASSWORD and DASHBOARD_VIEWER_PASSWORD in Railway Variables."
+                "SUPERADMIN_PASSWORD / DASHBOARD_VIEWER_PASSWORD not set — using built-in defaults. "
+                "Set strong values in Railway Variables for production."
             ))
         if not superadmin_password:
             superadmin_password = "SuperAdmin@786"
@@ -40,12 +42,15 @@ class Command(BaseCommand):
             f"{'Created' if created else 'Updated'} {superadmin_username} (full access)"
         ))
 
-        hp_user, created = user_model.objects.get_or_create(username=DASHBOARD_VIEWER_USERNAME)
+        hp_user, created = user_model.objects.get_or_create(username=viewer_username)
         hp_user.is_staff = False
         hp_user.is_superuser = False
         hp_user.set_password(viewer_password)
         hp_user.save()
         hp_user.groups.clear()
         self.stdout.write(self.style.SUCCESS(
-            f"{'Created' if created else 'Updated'} {DASHBOARD_VIEWER_USERNAME} (dashboard tabs only)"
+            f"{'Created' if created else 'Updated'} {viewer_username} (dashboard tabs only)"
         ))
+
+        usernames = list(user_model.objects.order_by("username").values_list("username", flat=True))
+        self.stdout.write(f"Dashboard login accounts: {', '.join(usernames)}")

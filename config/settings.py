@@ -51,14 +51,28 @@ def _build_allowed_hosts() -> list[str]:
     return list(dict.fromkeys(hosts))
 
 
+def _normalize_csrf_origin(origin: str) -> str:
+    """Django 4+ requires CSRF origins to include http:// or https://."""
+    origin = origin.strip().rstrip("/")
+    if not origin:
+        return ""
+    if "://" not in origin:
+        return f"https://{origin}"
+    return origin
+
+
 def _build_csrf_trusted_origins() -> list[str]:
-    origins = _env_list("CSRF_TRUSTED_ORIGINS")
+    origins = [_normalize_csrf_origin(o) for o in _env_list("CSRF_TRUSTED_ORIGINS")]
+    origins = [o for o in origins if o]
     railway_domain = _railway_public_domain()
     if railway_domain:
-        origins.extend([f"https://{railway_domain}", f"http://{railway_domain}"])
+        origins.extend([
+            _normalize_csrf_origin(railway_domain),
+            f"http://{railway_domain}",
+        ])
     railway_static = os.getenv("RAILWAY_STATIC_URL", "").strip()
     if railway_static:
-        origins.append(railway_static.rstrip("/"))
+        origins.append(_normalize_csrf_origin(railway_static))
     return list(dict.fromkeys(origins))
 
 

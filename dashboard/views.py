@@ -27,6 +27,9 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
     form = AuthenticationForm(request, data=request.POST or None)
+    for field in form.fields.values():
+        field.widget.attrs.setdefault("class", "form-control")
+    form.fields["username"].widget.attrs.setdefault("autofocus", True)
     if request.method == "POST" and form.is_valid():
         login(request, form.get_user())
         return redirect("dashboard")

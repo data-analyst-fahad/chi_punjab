@@ -11,19 +11,25 @@
       </div>
       <form method="post">
         {% csrf_token %}
-        {% if form.errors %}
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors|join:", " }}</div>
+        {% elif form.errors %}
         <div class="alert alert-danger">Invalid username or password.</div>
         {% endif %}
         <div class="mb-3">
-          <label class="form-label">Username</label>
-          <input type="text" name="username" class="form-control" required autofocus>
+          <label class="form-label" for="id_username">Username</label>
+          {{ form.username }}
         </div>
         <div class="mb-4">
-          <label class="form-label">Password</label>
-          <input type="password" name="password" class="form-control" required>
+          <label class="form-label" for="id_password">Password</label>
+          {{ form.password }}
         </div>
         <button type="submit" class="btn btn-primary w-100">Sign In</button>
       </form>
+      <div class="mt-4 small text-muted text-center">
+        <p class="mb-1">Accounts: <strong>superadmin</strong> (full access) or <strong>H&amp;PD</strong> (dashboard only)</p>
+        <p class="mb-0">Default passwords apply unless you set <code>SUPERADMIN_PASSWORD</code> and <code>DASHBOARD_VIEWER_PASSWORD</code> in Railway.</p>
+      </div>
     </div>
   </div>
 </div>
