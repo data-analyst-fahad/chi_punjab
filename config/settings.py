@@ -8,8 +8,8 @@ import logging
 import os
 import sys
 from pathlib import Path
-from urllib.parse import parse_qsl, urlparse
 
+import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
@@ -31,7 +31,7 @@ def _env_list(name: str, default: str = "") -> list[str]:
 
 
 def _normalize_database_url(url: str) -> str:
-    """Railway/Heroku may provide postgres:// — Django expects postgresql://."""
+    """dj-database-url accepts postgres://; normalize for consistency."""
     if url.startswith("postgres://"):
         return url.replace("postgres://", "postgresql://", 1)
     return url
@@ -84,81 +84,22 @@ def _on_railway() -> bool:
     return bool(os.getenv("RAILWAY_ENVIRONMENT") or _railway_public_domain())
 
 
+def _is_production() -> bool:
+    """Production = Railway deploy or DEBUG explicitly disabled."""
+    return _on_railway() or not _env_bool("DJANGO_DEBUG", True)
+
+
 def _resolve_database_url() -> str:
     """Railway/Supabase may expose the URL under different variable names."""
     for name in ("DATABASE_URL", "DATABASE_PRIVATE_URL", "POSTGRES_URL"):
         value = os.getenv(name, "").strip()
         if value:
-            return value
+            return _normalize_database_url(value)
     return ""
 
 
-def _postgres_options() -> dict:
-    return {
-        "connect_timeout": 10,
-        "options": f"-c search_path={HEALTH_DB_SCHEMA},public",
-    }
-
-
-def _build_database_from_env_vars() -> dict | None:
-    """Use PGHOST / POSTGRES_* when a URL is not provided (e.g. Railway Postgres plugin)."""
-    host = (
-        os.getenv("PGHOST", "").strip()
-        or os.getenv("POSTGRES_HOST", "").strip()
-    )
-    if not host or host in {"localhost", "127.0.0.1", "::1"}:
-        return None
-
-    options = _postgres_options()
-    if _env_bool("DATABASE_SSL", True):
-        options["sslmode"] = os.getenv("DATABASE_SSLMODE", "require")
-
-    return {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("PGDATABASE", os.getenv("POSTGRES_DB", "postgres")),
-        "USER": os.getenv("PGUSER", os.getenv("POSTGRES_USER", "postgres")),
-        "PASSWORD": os.getenv("PGPASSWORD", os.getenv("POSTGRES_PASSWORD", "")),
-        "HOST": host,
-        "PORT": os.getenv("PGPORT", os.getenv("POSTGRES_PORT", "5432")),
-        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "600")),
-        "OPTIONS": options,
-    }
-
-
-def _build_database_config() -> dict:
-    database_url = _resolve_database_url()
-    if database_url:
-        database_url = _normalize_database_url(database_url)
-        parsed = urlparse(database_url)
-        query_params = dict(parse_qsl(parsed.query))
-
-        options = _postgres_options()
-        hostname = (parsed.hostname or "").lower()
-        if "supabase" in hostname or _env_bool("DATABASE_SSL", True):
-            options["sslmode"] = query_params.get("sslmode", "require")
-
-        return {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": parsed.path.lstrip("/") or "postgres",
-            "USER": parsed.username or "postgres",
-            "PASSWORD": parsed.password or "",
-            "HOST": parsed.hostname or "localhost",
-            "PORT": str(parsed.port or 5432),
-            "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "600")),
-            "OPTIONS": options,
-        }
-
-    from_env = _build_database_from_env_vars()
-    if from_env:
-        return from_env
-
-    if _on_railway() or not _env_bool("DJANGO_DEBUG", True):
-        raise ImproperlyConfigured(
-            "DATABASE_URL is not set. In Railway → Variables, add your Supabase pooler URL "
-            "(port 6543), for example: "
-            "postgresql://postgres.PROJECT_REF:PASSWORD@aws-REGION.pooler.supabase.com:6543/postgres"
-        )
-
+def _local_database_config() -> dict:
+    """Local-only fallback when DATABASE_URL is not set and DEBUG=true."""
     return {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("POSTGRES_DB", "postgres"),
@@ -167,8 +108,51 @@ def _build_database_config() -> dict:
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
         "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "600")),
-        "OPTIONS": _postgres_options(),
+        "OPTIONS": {
+            "connect_timeout": 10,
+            "options": f"-c search_path={HEALTH_DB_SCHEMA},public",
+        },
     }
+
+
+def _apply_health_db_options(config: dict, *, ssl_required: bool) -> dict:
+    """Merge Supabase SSL and health_summary search_path into parsed config."""
+    options = config.setdefault("OPTIONS", {})
+    options["connect_timeout"] = 10
+    options["options"] = f"-c search_path={HEALTH_DB_SCHEMA},public"
+    if ssl_required:
+        options.setdefault("sslmode", "require")
+    return config
+
+
+def _build_database_config() -> dict:
+    database_url = _resolve_database_url()
+    ssl_required = _env_bool("DATABASE_SSL", True)
+    conn_max_age = int(os.getenv("DB_CONN_MAX_AGE", "600"))
+
+    if not database_url:
+        if _is_production():
+            raise ImproperlyConfigured(
+                "DATABASE_URL is required in production. In Railway → Variables, set your "
+                "Supabase pooler URL (port 6543), e.g. "
+                "postgresql://postgres.PROJECT_REF:PASSWORD@aws-REGION.pooler.supabase.com:6543/postgres"
+            )
+        return _local_database_config()
+
+    config = dj_database_url.parse(
+        database_url,
+        conn_max_age=conn_max_age,
+        ssl_require=ssl_required,
+    )
+
+    host = (config.get("HOST") or "").strip().lower()
+    if _is_production() and host in {"", "localhost", "127.0.0.1", "::1"}:
+        raise ImproperlyConfigured(
+            f"Production DATABASE_URL must point to a remote database, not '{host or 'localhost'}'. "
+            "Set DATABASE_URL to your Supabase pooler URL in Railway Variables."
+        )
+
+    return _apply_health_db_options(config, ssl_required=ssl_required)
 
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-change-in-production")
