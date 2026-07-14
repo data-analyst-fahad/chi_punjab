@@ -3,27 +3,27 @@
 {% block title %}Dashboard — Community Health Inspector Analytics Dashboard{% endblock %}
 
 {% block content %}
-<section class="filters-card card shadow-sm mb-4">
-  <div class="card-body">
+<section class="filters-card card shadow-sm mb-4 sticky-filters">
+  <div class="card-body py-3">
     <div class="row g-3 align-items-end">
-      <div class="col-md-3">
-        <label class="form-label">Date Range</label>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label fw-semibold small text-uppercase text-muted mb-1" for="datePreset">Date Range</label>
         <select id="datePreset" class="form-select">
           {% for p in filter_options.presets %}
-          <option value="{{ p.value }}" {% if p.value == 'all_time' %}selected{% endif %}>{{ p.label }}</option>
+          <option value="{{ p.value }}" {% if p.value == 'last_30_days' %}selected{% endif %}>{{ p.label }}</option>
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2 custom-date d-none">
-        <label class="form-label">Start Date</label>
+      <div class="col-lg-2 col-md-3 custom-date d-none">
+        <label class="form-label small" for="startDate">Start Date</label>
         <input type="date" id="startDate" class="form-control">
       </div>
-      <div class="col-md-2 custom-date d-none">
-        <label class="form-label">End Date</label>
+      <div class="col-lg-2 col-md-3 custom-date d-none">
+        <label class="form-label small" for="endDate">End Date</label>
         <input type="date" id="endDate" class="form-control">
       </div>
-      <div class="col-md-3">
-        <label class="form-label">District</label>
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label fw-semibold small text-uppercase text-muted mb-1" for="districtFilter">District</label>
         <select id="districtFilter" class="form-select">
           <option value="">All Districts</option>
           {% for d in filter_options.districts %}
@@ -31,133 +31,178 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
-        <button id="applyFilters" class="btn btn-primary w-100">
-          <i class="bi bi-funnel me-1"></i>Apply
+      <div class="col-lg-2 col-md-6">
+        <button id="applyFilters" class="btn btn-primary w-100 mb-2">
+          <i class="bi bi-funnel-fill me-1"></i>Apply
+        </button>
+        <button id="resetFilters" class="btn btn-outline-secondary w-100" type="button">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
         </button>
       </div>
     </div>
   </div>
 </section>
 
-<section id="kpiGrid" class="row g-3 mb-4"></section>
+<section id="kpiGrid" class="row g-3 mb-4 kpi-grid"></section>
 
-<ul class="nav nav-tabs mb-3" id="dashboardTabs" role="tablist">
-  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabOverview">Overview</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAnc">ANC</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabMi">Maternal Immunization</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCn">Child Nutrition</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCi">Child Immunization</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPnc">PNC</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabFp">Family Planning</button></li>
-  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabGeo">Geographic</button></li>
+<ul class="nav nav-tabs executive-tabs mb-3 flex-nowrap overflow-auto" id="dashboardTabs" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabOverview" type="button">📊 Overview</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAnc" type="button">🏥 ANC</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabMi" type="button">🤰 Maternal</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCn" type="button">🥗 Nutrition</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCi" type="button">💉 Child Immunization</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPnc" type="button">👩‍⚕️ PNC</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabFp" type="button">❤️ Family Planning</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabGeo" type="button">🗺 Geographic</button></li>
 </ul>
 
-<div class="tab-content">
+<div class="tab-content executive-tab-content">
   <div class="tab-pane fade show active" id="tabOverview">
-    <div class="row g-3">
+    <div class="row g-3 mb-4">
       <div class="col-lg-6">
-        <div class="card chart-card">
-          <div class="card-body">
-            <div id="chartOverviewMothers" class="chart-box chart-box-overview"></div>
-          </div>
+        <div class="card chart-card h-100" data-module="overview">
+          <div class="card-body"><div id="chartOverviewMothers" class="chart-box chart-box-overview"></div></div>
         </div>
       </div>
       <div class="col-lg-6">
-        <div class="card chart-card">
-          <div class="card-body">
-            <div id="chartOverviewAnc" class="chart-box chart-box-overview"></div>
-          </div>
+        <div class="card chart-card h-100" data-module="overview">
+          <div class="card-body"><div id="chartOverviewAnc" class="chart-box chart-box-overview"></div></div>
         </div>
       </div>
       <div class="col-lg-6">
-        <div class="card chart-card">
-          <div class="card-body">
-            <div id="chartOverviewChildren" class="chart-box chart-box-overview"></div>
-          </div>
+        <div class="card chart-card h-100" data-module="overview">
+          <div class="card-body"><div id="chartOverviewChildren" class="chart-box chart-box-overview"></div></div>
         </div>
       </div>
       <div class="col-lg-6">
-        <div class="card chart-card">
-          <div class="card-body">
-            <div id="chartOverviewPnc" class="chart-box chart-box-overview"></div>
-          </div>
+        <div class="card chart-card h-100" data-module="overview">
+          <div class="card-body"><div id="chartOverviewPnc" class="chart-box chart-box-overview"></div></div>
         </div>
       </div>
       <div class="col-lg-6">
-        <div class="card chart-card">
-          <div class="card-body">
-            <div id="chartOverviewFpCounsel" class="chart-box chart-box-overview"></div>
-          </div>
+        <div class="card chart-card h-100" data-module="overview">
+          <div class="card-body"><div id="chartOverviewFpCounsel" class="chart-box chart-box-overview"></div></div>
         </div>
       </div>
       <div class="col-lg-6">
-        <div class="card chart-card">
-          <div class="card-body">
-            <div id="chartOverviewFpCommodity" class="chart-box chart-box-overview"></div>
-          </div>
+        <div class="card chart-card h-100" data-module="overview">
+          <div class="card-body"><div id="chartOverviewFpCommodity" class="chart-box chart-box-overview"></div></div>
         </div>
       </div>
     </div>
+
+    <section class="card shadow-sm border-0 ranking-section mb-4">
+      <div class="card-header bg-transparent border-bottom py-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-6">
+            <h5 class="mb-0 fw-semibold"><i class="bi bi-trophy me-2 text-warning"></i>District Performance Rankings</h5>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1" for="rankingIndicator">Ranking Indicator</label>
+            <select id="rankingIndicator" class="form-select form-select-sm"></select>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <h6 class="text-success fw-semibold mb-3"><i class="bi bi-graph-up-arrow me-1"></i>Top 5 Performing Districts</h6>
+            <div id="topDistrictsOverview" class="ranking-cards"></div>
+          </div>
+          <div class="col-lg-6">
+            <h6 class="text-danger fw-semibold mb-3"><i class="bi bi-graph-down-arrow me-1"></i>Bottom 5 Performing Districts</h6>
+            <div id="bottomDistrictsOverview" class="ranking-cards"></div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
+
   <div class="tab-pane fade" id="tabAnc">
     <div class="row g-3">
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartTrimester" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartBmi" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartHtn" class="chart-box"></div></div></div></div>
-      <div class="col-md-6"><div class="card chart-card"><div class="card-body"><div id="chartDiabetesTrend" class="chart-box"></div></div></div></div>
-      <div class="col-md-6"><div class="card chart-card"><div class="card-body"><div id="chartAncDistrict" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="anc"><div class="card-body"><div id="chartTrimester" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="anc"><div class="card-body"><div id="chartBmi" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="anc"><div class="card-body"><div id="chartHtn" class="chart-box"></div></div></div></div>
+      <div class="col-xl-6 col-md-6"><div class="card chart-card h-100" data-module="anc"><div class="card-body"><div id="chartDiabetesTrend" class="chart-box"></div></div></div></div>
+      <div class="col-xl-6 col-md-6"><div class="card chart-card h-100" data-module="anc"><div class="card-body"><div id="chartAncDistrict" class="chart-box"></div></div></div></div>
     </div>
   </div>
+
   <div class="tab-pane fade" id="tabMi">
     <div class="row g-3">
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartMiMin" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartMiFull" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartMiTrend" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="maternal"><div class="card-body"><div id="chartMiMin" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="maternal"><div class="card-body"><div id="chartMiFull" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="maternal"><div class="card-body"><div id="chartMiTrend" class="chart-box"></div></div></div></div>
     </div>
   </div>
+
   <div class="tab-pane fade" id="tabCn">
     <div class="row g-3">
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartSam" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartMam" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartNutritionTrend" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="nutrition"><div class="card-body"><div id="chartSam" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="nutrition"><div class="card-body"><div id="chartMam" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="nutrition"><div class="card-body"><div id="chartNutritionTrend" class="chart-box"></div></div></div></div>
     </div>
   </div>
+
   <div class="tab-pane fade" id="tabCi">
     <div class="row g-3">
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartCiCoverage" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartCiDefaulter" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartCiTrend" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="child_immunization"><div class="card-body"><div id="chartCiCoverage" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="child_immunization"><div class="card-body"><div id="chartCiDefaulter" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="child_immunization"><div class="card-body"><div id="chartCiTrend" class="chart-box"></div></div></div></div>
     </div>
   </div>
+
   <div class="tab-pane fade" id="tabPnc">
     <div class="row g-3">
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartPncEbf" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartPncCounsel" class="chart-box"></div></div></div></div>
-      <div class="col-md-4"><div class="card chart-card"><div class="card-body"><div id="chartPncTrend" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="pnc"><div class="card-body"><div id="chartPncEbf" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="pnc"><div class="card-body"><div id="chartPncCounsel" class="chart-box"></div></div></div></div>
+      <div class="col-xl-4 col-md-6"><div class="card chart-card h-100" data-module="pnc"><div class="card-body"><div id="chartPncTrend" class="chart-box"></div></div></div></div>
     </div>
   </div>
+
   <div class="tab-pane fade" id="tabFp">
     <div class="row g-3">
-      <div class="col-md-6"><div class="card chart-card"><div class="card-body"><div id="chartFpMix" class="chart-box"></div></div></div></div>
-      <div class="col-md-6"><div class="card chart-card"><div class="card-body"><div id="chartFpCommodity" class="chart-box"></div></div></div></div>
+      <div class="col-xl-6 col-md-6"><div class="card chart-card h-100" data-module="fp"><div class="card-body"><div id="chartFpMix" class="chart-box"></div></div></div></div>
+      <div class="col-xl-6 col-md-6"><div class="card chart-card h-100" data-module="fp"><div class="card-body"><div id="chartFpCommodity" class="chart-box"></div></div></div></div>
     </div>
   </div>
+
   <div class="tab-pane fade" id="tabGeo">
     <div class="row g-3 mb-3">
-      <div class="col-md-6">
-        <div class="card"><div class="card-header bg-success text-white">Top Performing Districts</div>
-        <ul id="topDistricts" class="list-group list-group-flush"></ul></div>
-      </div>
-      <div class="col-md-6">
-        <div class="card"><div class="card-header bg-danger text-white">Lowest Performing Districts</div>
-        <ul id="bottomDistricts" class="list-group list-group-flush"></ul></div>
+      <div class="col-12">
+        <div class="card chart-card border-0 shadow-sm">
+          <div class="card-header bg-transparent border-bottom py-2">
+            <h6 class="mb-0 fw-semibold"><i class="bi bi-geo-alt-fill me-2 text-primary"></i>Punjab District Map</h6>
+          </div>
+          <div class="card-body p-0">
+            <div id="punjabMap" class="geo-map"></div>
+            <div id="geoDistrictPanel" class="geo-district-panel d-none">
+              <button type="button" class="btn-close float-end" id="geoPanelClose" aria-label="Close"></button>
+              <h6 id="geoPanelTitle" class="fw-semibold mb-2"></h6>
+              <div id="geoPanelStats" class="small"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="card chart-card mb-3"><div class="card-body"><div id="chartGeoCompare" class="chart-box"></div></div></div>
-    <div class="card"><div class="card-body table-responsive">
-      <table class="table table-sm table-hover" id="geoRankingTable">
-        <thead><tr><th>Rank</th><th>District</th><th>Score</th><th>ANC</th><th>Immunized</th><th>SAM</th><th>PNC</th><th>FP</th></tr></thead>
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-header bg-success text-white py-2">Top Performing Districts</div>
+          <ul id="topDistricts" class="list-group list-group-flush"></ul>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-header bg-danger text-white py-2">Lowest Performing Districts</div>
+          <ul id="bottomDistricts" class="list-group list-group-flush"></ul>
+        </div>
+      </div>
+    </div>
+    <div class="card chart-card mb-3" data-module="geographic"><div class="card-body"><div id="chartGeoCompare" class="chart-box"></div></div></div>
+    <div class="card border-0 shadow-sm"><div class="card-body table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0" id="geoRankingTable">
+        <thead class="table-light"><tr><th>Rank</th><th>District</th><th>Score</th><th>ANC</th><th>Immunized</th><th>SAM</th><th>PNC</th><th>FP</th></tr></thead>
         <tbody></tbody>
       </table>
     </div></div>
@@ -166,5 +211,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'dashboard/js/dashboard.js' %}?v=8"></script>
+<script src="{% static 'dashboard/js/dashboard.js' %}?v=9"></script>
 {% endblock %}

@@ -19,12 +19,11 @@ def _sum_field(qs, field: str) -> int:
 
 
 def _pct_change(current: float, previous: float) -> dict[str, Any]:
-    if previous == 0:
-        change = 100.0 if current > 0 else 0.0
-    else:
-        change = round((current - previous) / previous * 100, 2)
+    if previous <= 0:
+        return {"value": None, "direction": "none", "available": False}
+    change = round((current - previous) / previous * 100, 2)
     direction = "up" if change > 0 else "down" if change < 0 else "flat"
-    return {"value": change, "direction": direction}
+    return {"value": abs(change), "direction": direction, "available": True, "signed_value": change}
 
 
 def _kpi_card(current: int, previous: int, icon: str, label: str) -> dict[str, Any]:

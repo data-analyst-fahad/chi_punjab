@@ -1,13 +1,42 @@
 /**
- * Core utilities: theme, filters, AJAX helpers, responsive Plotly wrappers.
+ * Core utilities: theme, filters, Plotly chart wrappers, KPI rendering, exports.
  */
 const HAD = {
   chartIds: new Set(),
+  chartMeta: {},
+
+  MODULE_COLORS: {
+    overview: "#4169E1",
+    anc: "#0d6efd",
+    maternal: "#198754",
+    nutrition: "#fd7e14",
+    child_immunization: "#6f42c1",
+    pnc: "#20c997",
+    fp: "#e83e8c",
+    geographic: "#003366",
+  },
 
   PLOT_CONFIG: {
     responsive: true,
     displayModeBar: false,
     useResizeHandler: true,
+  },
+
+  OVERVIEW_KPI_KEYS: new Set([
+    "total_mothers",
+    "total_anc",
+    "children_under_five",
+    "pnc_visits",
+    "fp_counseling",
+    "fp_commodity",
+    "fully_immunized_children",
+    "diabetes_cases",
+  ]),
+
+  KPI_LABELS: {
+    pnc_visits: "Total PNC",
+    fp_counseling: "Family Planning Counseling",
+    fp_commodity: "FP Commodity Distribution",
   },
 
   showSpinner() { document.getElementById("globalSpinner")?.classList.remove("d-none"); },
@@ -17,25 +46,30 @@ const HAD = {
     return document.documentElement.getAttribute("data-bs-theme") === "dark";
   },
 
+  moduleColor(elId) {
+    const card = document.getElementById(elId)?.closest("[data-module]");
+    const mod = card?.dataset.module || "overview";
+    return this.MODULE_COLORS[mod] || this.MODULE_COLORS.overview;
+  },
+
   baseLayout(title, extra = {}) {
-    const textColor = this.isDarkTheme() ? "#ffffff" : "#000000";
+    const textColor = this.isDarkTheme() ? "#f8f9fa" : "#212529";
     return {
-      title: { text: title, font: { size: 14, color: textColor } },
+      title: { text: title, font: { size: 16, color: textColor, family: "Segoe UI, system-ui, sans-serif" }, x: 0.02, xanchor: "left" },
       autosize: true,
       paper_bgcolor: "transparent",
       plot_bgcolor: "transparent",
-      font: { color: textColor, size: 11 },
-      margin: { t: 44, b: 56, l: 56, r: 24, autoexpand: true },
-      legend: { orientation: "h", yanchor: "top", y: -0.2, x: 0, font: { color: textColor } },
-      xaxis: { tickfont: { color: textColor }, titlefont: { color: textColor } },
-      yaxis: { tickfont: { color: textColor }, titlefont: { color: textColor } },
+      font: { color: textColor, size: 12, family: "Segoe UI, system-ui, sans-serif" },
+      margin: { t: 56, b: 64, l: 64, r: 32, autoexpand: true },
+      legend: { orientation: "h", yanchor: "top", y: -0.18, x: 0, font: { color: textColor } },
+      hovermode: "closest",
       ...extra,
     };
   },
 
   chartThemeLayout() {
-    const textColor = this.isDarkTheme() ? "#ffffff" : "#000000";
-    const gridColor = this.isDarkTheme() ? "rgba(255,255,255,0.15)" : "rgba(128,128,128,0.2)";
+    const textColor = this.isDarkTheme() ? "#f8f9fa" : "#212529";
+    const gridColor = this.isDarkTheme() ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
     return {
       "font.color": textColor,
       "title.font.color": textColor,
@@ -50,20 +84,17 @@ const HAD = {
   },
 
   applyAxisTheme(layout) {
-    const textColor = this.isDarkTheme() ? "#ffffff" : "#000000";
-    const gridColor = this.isDarkTheme() ? "rgba(255,255,255,0.15)" : "rgba(128,128,128,0.2)";
-    layout.xaxis = {
-      ...(layout.xaxis || {}),
-      tickfont: { color: textColor, ...(layout.xaxis?.tickfont || {}) },
-      titlefont: { color: textColor, ...(layout.xaxis?.titlefont || {}) },
-      gridcolor: layout.xaxis?.gridcolor || gridColor,
-    };
-    layout.yaxis = {
-      ...(layout.yaxis || {}),
-      tickfont: { color: textColor, ...(layout.yaxis?.tickfont || {}) },
-      titlefont: { color: textColor, ...(layout.yaxis?.titlefont || {}) },
-      gridcolor: layout.yaxis?.gridcolor || gridColor,
-    };
+    const textColor = this.isDarkTheme() ? "#f8f9fa" : "#212529";
+    const gridColor = this.isDarkTheme() ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
+    ["xaxis", "yaxis"].forEach((axis) => {
+      layout[axis] = {
+        ...(layout[axis] || {}),
+        tickfont: { color: textColor, ...(layout[axis]?.tickfont || {}) },
+        titlefont: { color: textColor, ...(layout[axis]?.titlefont || {}) },
+        gridcolor: layout[axis]?.gridcolor || gridColor,
+        zerolinecolor: gridColor,
+      };
+    });
     return layout;
   },
 
@@ -73,24 +104,105 @@ const HAD = {
       const el = document.getElementById(id);
       if (!el) return;
       Plotly.relayout(el, layout);
-      Plotly.restyle(el, { "textfont.color": layout["font.color"] });
     });
   },
 
-  async plotChart(elId, data, layout = {}) {
+  showEmptyChart(elId, message = "No Data Available") {
     const el = document.getElementById(elId);
-    if (!el) {
-      console.warn(`Chart element not found: ${elId}`);
-      return;
-    }
-    if (typeof Plotly === "undefined") {
-      console.error("Plotly is not loaded");
-      return;
-    }
+    if (!el) return;
+    if (el.querySelector(".plotly")) Plotly.purge(el);
+    el.innerHTML = `<div class="chart-empty-state"><i class="bi bi-bar-chart-line"></i><p>${message}</p></div>`;
+    this.chartIds.delete(elId);
+  },
 
-    if (el.querySelector(".plotly")) {
-      Plotly.purge(el);
+  hasChartData(labels, values) {
+    if (!labels?.length) return false;
+    return values.some((v) => Number(v) > 0);
+  },
+
+  ensureChartToolbar(elId, title) {
+    const el = document.getElementById(elId);
+    const cardBody = el?.closest(".card-body");
+    if (!cardBody || cardBody.querySelector(".chart-toolbar")) return;
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "chart-toolbar d-flex justify-content-end gap-1 mb-2";
+    toolbar.innerHTML = `
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-export="png" data-chart="${elId}" title="Download PNG"><i class="bi bi-image"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-export="csv" data-chart="${elId}" title="Download CSV"><i class="bi bi-filetype-csv"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-export="print" data-chart="${elId}" title="Print Chart"><i class="bi bi-printer"></i></button>`;
+    cardBody.prepend(toolbar);
+
+    toolbar.querySelectorAll("[data-export]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const action = btn.dataset.export;
+        if (action === "png") this.exportPNG(elId, title);
+        else if (action === "csv") this.exportCSV(elId);
+        else if (action === "print") this.printChart(elId);
+      });
+    });
+  },
+
+  exportPNG(elId, title) {
+    const el = document.getElementById(elId);
+    if (!el?.querySelector(".plotly")) return;
+    Plotly.downloadImage(el, {
+      format: "png",
+      width: 1200,
+      height: 700,
+      filename: (title || elId).replace(/\s+/g, "_").toLowerCase(),
+    });
+  },
+
+  exportCSV(elId) {
+    const meta = this.chartMeta[elId];
+    if (!meta) return;
+    let rows = [["Label", "Value"]];
+    if (meta.type === "bar" || meta.type === "line") {
+      rows = [["Label", ...(meta.seriesNames || ["Value"])]];
+      meta.labels.forEach((label, i) => {
+        if (meta.seriesNames) {
+          rows.push([label, ...meta.seriesNames.map((n) => meta.series[n][i])]);
+        } else {
+          rows.push([label, meta.values[i]]);
+        }
+      });
+    } else if (meta.type === "pie") {
+      rows = [["Category", "Value", "Percent"]];
+      const total = meta.values.reduce((a, b) => a + Number(b), 0) || 1;
+      meta.labels.forEach((label, i) => {
+        const val = Number(meta.values[i]);
+        rows.push([label, val, ((val / total) * 100).toFixed(1) + "%"]);
+      });
     }
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${elId}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  },
+
+  printChart(elId) {
+    const el = document.getElementById(elId);
+    const card = el?.closest(".chart-card");
+    if (!card) return;
+    const w = window.open("", "_blank");
+    w.document.write(`<html><head><title>Chart</title><style>body{margin:0;padding:20px;font-family:Segoe UI,sans-serif}</style></head><body>${card.outerHTML}</body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
+    w.close();
+  },
+
+  async plotChart(elId, data, layout = {}, meta = {}) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (typeof Plotly === "undefined") return;
+
+    if (el.querySelector(".plotly")) Plotly.purge(el);
+    el.innerHTML = "";
 
     const { title, ...rest } = layout;
     const height = el.clientHeight || parseInt(getComputedStyle(el).height, 10) || 400;
@@ -103,14 +215,14 @@ const HAD = {
 
     await Plotly.newPlot(el, data, mergedLayout, this.PLOT_CONFIG);
     this.chartIds.add(elId);
+    this.chartMeta[elId] = { ...meta, title: title || "" };
+    this.ensureChartToolbar(elId, title);
     requestAnimationFrame(() => this.resizeChart(elId));
   },
 
   resizeChart(elId) {
     const el = document.getElementById(elId);
-    if (el && el.querySelector(".plotly")) {
-      Plotly.Plots.resize(el);
-    }
+    if (el?.querySelector(".plotly")) Plotly.Plots.resize(el);
   },
 
   resizeAllCharts() {
@@ -118,8 +230,7 @@ const HAD = {
   },
 
   resizeChartsIn(container) {
-    if (!container) return;
-    container.querySelectorAll(".chart-box").forEach((el) => {
+    container?.querySelectorAll(".chart-box").forEach((el) => {
       if (el.id) this.resizeChart(el.id);
     });
   },
@@ -136,19 +247,41 @@ const HAD = {
         const pane = document.querySelector(event.target.getAttribute("data-bs-target"));
         requestAnimationFrame(() => {
           this.resizeChartsIn(pane);
-          setTimeout(() => this.resizeChartsIn(pane), 80);
+          setTimeout(() => this.resizeChartsIn(pane), 100);
         });
       });
     });
 
     if (window.ResizeObserver) {
       const observer = new ResizeObserver(() => this.resizeAllCharts());
-      const observeCharts = () => {
-        document.querySelectorAll(".chart-box").forEach((el) => observer.observe(el));
-      };
-      observeCharts();
-      this._observeCharts = observeCharts;
+      document.querySelectorAll(".chart-box").forEach((el) => observer.observe(el));
     }
+  },
+
+  initHeaderClock() {
+    const clockEl = document.getElementById("headerClock");
+    const update = () => {
+      const now = new Date();
+      if (clockEl) {
+        clockEl.textContent = now.toLocaleString("en-PK", {
+          weekday: "short", year: "numeric", month: "short", day: "numeric",
+          hour: "2-digit", minute: "2-digit", second: "2-digit",
+        });
+      }
+    };
+    update();
+    setInterval(update, 1000);
+  },
+
+  setLastUpdated(isoDate) {
+    const el = document.getElementById("headerLastUpdated");
+    if (!el) return;
+    if (!isoDate) {
+      el.textContent = "Last updated: —";
+      return;
+    }
+    const d = new Date(isoDate);
+    el.textContent = `Last updated: ${d.toLocaleDateString("en-PK", { year: "numeric", month: "short", day: "numeric" })}`;
   },
 
   initTheme() {
@@ -186,7 +319,7 @@ const HAD = {
   },
 
   getFilterParams() {
-    const preset = document.getElementById("datePreset")?.value || "all_time";
+    const preset = document.getElementById("datePreset")?.value || "last_30_days";
     const params = new URLSearchParams();
     params.set("preset", preset);
     if (preset === "custom") {
@@ -196,6 +329,17 @@ const HAD = {
     const district = document.getElementById("districtFilter")?.value;
     if (district) params.set("district", district);
     return params;
+  },
+
+  resetFilters(onApply) {
+    const presetEl = document.getElementById("datePreset");
+    const districtEl = document.getElementById("districtFilter");
+    if (presetEl) presetEl.value = "last_30_days";
+    if (districtEl) districtEl.value = "";
+    document.getElementById("startDate").value = "";
+    document.getElementById("endDate").value = "";
+    document.querySelectorAll(".custom-date").forEach((el) => el.classList.add("d-none"));
+    onApply?.();
   },
 
   initFilters(onApply) {
@@ -208,6 +352,7 @@ const HAD = {
     presetEl?.addEventListener("change", toggleCustom);
     toggleCustom();
     document.getElementById("applyFilters")?.addEventListener("click", onApply);
+    document.getElementById("resetFilters")?.addEventListener("click", () => this.resetFilters(onApply));
   },
 
   async fetchJSON(url, params) {
@@ -217,25 +362,61 @@ const HAD = {
     return resp.json();
   },
 
+  groupPieSmallSlices(labels, values, threshold = 3) {
+    const total = values.reduce((a, b) => a + Number(b || 0), 0) || 1;
+    const grouped = [];
+    let other = 0;
+    labels.forEach((label, i) => {
+      const val = Number(values[i] || 0);
+      const pct = (val / total) * 100;
+      if (pct < threshold && label !== "Other") other += val;
+      else grouped.push({ label: label || "Unknown", value: val });
+    });
+    if (other > 0) grouped.push({ label: "Other", value: other });
+    return {
+      labels: grouped.map((g) => g.label),
+      values: grouped.map((g) => g.value),
+    };
+  },
+
   plotPie(elId, labels, values, title, donut = false) {
-    const textColor = this.isDarkTheme() ? "#ffffff" : "#000000";
+    if (!this.hasChartData(labels, values)) {
+      this.showEmptyChart(elId);
+      return Promise.resolve();
+    }
+    const grouped = this.groupPieSmallSlices(labels, values);
+    const color = this.moduleColor(elId);
+    const textColor = this.isDarkTheme() ? "#f8f9fa" : "#212529";
     const data = [{
-      labels,
-      values,
+      labels: grouped.labels,
+      values: grouped.values,
       type: "pie",
       hole: donut ? 0.45 : 0,
       textinfo: "label+percent",
+      textposition: "auto",
       automargin: true,
-      textfont: { color: textColor },
+      textfont: { color: textColor, size: 11 },
+      marker: { colors: this.pieColorScale(grouped.labels.length, color) },
+      hovertemplate: "%{label}<br>%{value:,}<br>%{percent}<extra></extra>",
     }];
+    this.chartMeta[elId] = { type: "pie", labels: grouped.labels, values: grouped.values };
     return this.plotChart(elId, data, {
       title,
       showlegend: true,
-      margin: { t: 44, b: 20, l: 20, r: 20, autoexpand: true },
+      margin: { t: 56, b: 24, l: 24, r: 24, autoexpand: true },
     });
   },
 
+  pieColorScale(n, base) {
+    const palette = ["#4169E1", "#0d6efd", "#198754", "#fd7e14", "#6f42c1", "#20c997", "#e83e8c", "#6610f2", "#ffc107", "#6c757d"];
+    return Array.from({ length: n }, (_, i) => palette[i % palette.length]);
+  },
+
   plotBar(elId, labels, values, title, horizontal = false) {
+    if (!this.hasChartData(labels, values)) {
+      this.showEmptyChart(elId);
+      return Promise.resolve();
+    }
     const pairs = labels.map((label, index) => ({
       label: label || "Unknown",
       value: Number(values[index] || 0),
@@ -249,61 +430,130 @@ const HAD = {
       chartValues = chartValues.reverse();
     }
 
+    const color = this.moduleColor(elId);
+    const textColor = this.isDarkTheme() ? "#f8f9fa" : "#212529";
     const trace = horizontal
-      ? { y: chartLabels, x: chartValues, type: "bar", orientation: "h", marker: { color: "#0d6efd" } }
-      : { x: chartLabels, y: chartValues, type: "bar", marker: { color: "#0d6efd" } };
+      ? {
+          y: chartLabels,
+          x: chartValues,
+          type: "bar",
+          orientation: "h",
+          marker: { color, line: { width: 0 } },
+          text: chartValues.map((v) => v.toLocaleString()),
+          textposition: "outside",
+          textfont: { color: textColor, size: 10 },
+          hovertemplate: "%{y}<br>%{x:,}<extra></extra>",
+        }
+      : {
+          x: chartLabels,
+          y: chartValues,
+          type: "bar",
+          marker: { color, line: { width: 0 } },
+          text: chartValues.map((v) => v.toLocaleString()),
+          textposition: "outside",
+          textfont: { color: textColor, size: 10 },
+          hovertemplate: "%{x}<br>%{y:,}<extra></extra>",
+        };
+
+    this.chartMeta[elId] = { type: "bar", labels: chartLabels, values: chartValues };
     const axisLayout = horizontal
-      ? { yaxis: { automargin: true }, xaxis: { automargin: true, gridcolor: "rgba(128,128,128,0.2)" }, margin: { l: 10, r: 24, t: 44, b: 40 } }
-      : { xaxis: { automargin: true }, yaxis: { automargin: true, gridcolor: "rgba(128,128,128,0.2)" } };
+      ? { yaxis: { automargin: true, gridcolor: "rgba(128,128,128,0.15)" }, xaxis: { automargin: true, gridcolor: "rgba(128,128,128,0.15)" }, margin: { l: 8, r: 48, t: 56, b: 48 } }
+      : { xaxis: { automargin: true, gridcolor: "rgba(128,128,128,0.15)" }, yaxis: { automargin: true, gridcolor: "rgba(128,128,128,0.15)" } };
     return this.plotChart(elId, [trace], { title, ...axisLayout });
   },
 
   plotLine(elId, labels, values, title) {
+    if (!this.hasChartData(labels, values)) {
+      this.showEmptyChart(elId);
+      return Promise.resolve();
+    }
+    const color = this.moduleColor(elId);
+    this.chartMeta[elId] = { type: "line", labels, values, seriesNames: null };
     return this.plotChart(elId, [{
       x: labels,
       y: values,
       type: "scatter",
       mode: "lines+markers",
-      line: { color: "#6610f2", width: 2 },
+      name: title,
+      line: { color, width: 3, shape: "spline" },
+      marker: { size: 7, color },
+      hovertemplate: "%{x}<br>%{y:,}<extra></extra>",
     }], {
       title,
-      xaxis: { automargin: true },
-      yaxis: { automargin: true },
+      showlegend: false,
+      xaxis: { automargin: true, type: "category" },
+      yaxis: { automargin: true, gridcolor: "rgba(128,128,128,0.15)" },
     });
   },
 
   plotMultiLine(elId, labels, series, title) {
-    const traces = Object.entries(series).map(([name, values]) => ({
+    const seriesNames = Object.keys(series);
+    const hasData = labels?.length && seriesNames.some((n) => series[n]?.some((v) => Number(v) > 0));
+    if (!hasData) {
+      this.showEmptyChart(elId);
+      return Promise.resolve();
+    }
+    const palette = ["#4169E1", "#0d6efd", "#198754", "#fd7e14", "#6f42c1", "#20c997", "#e83e8c"];
+    const traces = seriesNames.map((name, idx) => ({
       x: labels,
-      y: values,
+      y: series[name],
       name,
       type: "scatter",
       mode: "lines+markers",
-      line: { width: 2 },
+      line: { width: 2.5, shape: "spline", color: palette[idx % palette.length] },
+      marker: { size: 6, color: palette[idx % palette.length] },
+      hovertemplate: `${name}<br>%{x}<br>%{y:,}<extra></extra>`,
     }));
+    this.chartMeta[elId] = { type: "line", labels, series, seriesNames };
     return this.plotChart(elId, traces, {
       title,
-      xaxis: { automargin: true },
-      yaxis: { automargin: true },
+      xaxis: { automargin: true, type: "category" },
+      yaxis: { automargin: true, gridcolor: "rgba(128,128,128,0.15)" },
       showlegend: true,
+      legend: { orientation: "h", y: -0.22 },
     });
   },
 
-  renderKpis(containerId, kpis) {
+  renderKpis(containerId, kpis, overviewOnly = true) {
     const grid = document.getElementById(containerId);
     if (!grid) return;
-    grid.innerHTML = kpis.map((k, i) => {
-      const dir = k.change_pct.direction;
-      const icon = dir === "up" ? "bi-arrow-up-short" : dir === "down" ? "bi-arrow-down-short" : "bi-dash";
+
+    const filtered = overviewOnly
+      ? kpis.filter((k) => this.OVERVIEW_KPI_KEYS.has(k.key))
+      : kpis;
+
+    const kpiStyles = {
+      total_mothers: { accent: "#4169E1", icon: "bi-people-fill" },
+      total_anc: { accent: "#0d6efd", icon: "bi-heart-pulse-fill" },
+      children_under_five: { accent: "#fd7e14", icon: "bi-emoji-smile-fill" },
+      pnc_visits: { accent: "#20c997", icon: "bi-hospital-fill" },
+      fp_counseling: { accent: "#e83e8c", icon: "bi-chat-dots-fill" },
+      fp_commodity: { accent: "#d63384", icon: "bi-box-seam-fill" },
+      fully_immunized_children: { accent: "#6f42c1", icon: "bi-shield-fill-check" },
+      diabetes_cases: { accent: "#dc3545", icon: "bi-droplet-fill" },
+    };
+
+    grid.innerHTML = filtered.map((k, i) => {
+      const style = kpiStyles[k.key] || { accent: "#4169E1", icon: k.icon };
+      const label = this.KPI_LABELS[k.key] || k.label;
+      const change = k.change_pct || {};
+      let changeHtml;
+      if (change.available === false || change.value == null) {
+        changeHtml = `<span class="kpi-change none small text-muted">No comparison available</span>`;
+      } else {
+        const icon = change.direction === "up" ? "bi-arrow-up-short" : change.direction === "down" ? "bi-arrow-down-short" : "bi-dash";
+        const sign = change.direction === "up" ? "↑" : change.direction === "down" ? "↓" : "→";
+        changeHtml = `<span class="kpi-change ${change.direction} small">${sign} ${change.value}%</span>`;
+      }
       return `
-        <div class="col-xl-3 col-md-4 col-sm-6">
-          <div class="card kpi-card h-100" style="animation-delay:${i * 0.05}s">
-            <div class="card-body d-flex gap-3">
-              <div class="kpi-icon bg-primary bg-opacity-10 text-primary"><i class="bi ${k.icon}"></i></div>
-              <div>
-                <div class="text-muted small">${k.label}</div>
-                <div class="fs-4 fw-bold">${Number(k.value).toLocaleString()}</div>
-                <div class="kpi-change ${dir} small"><i class="bi ${icon}"></i> ${Math.abs(k.change_pct.value)}%</div>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+          <div class="card kpi-card h-100 fade-in-up" style="animation-delay:${i * 0.06}s; --kpi-accent:${style.accent}">
+            <div class="card-body d-flex align-items-start gap-3">
+              <div class="kpi-icon"><i class="bi ${style.icon}"></i></div>
+              <div class="flex-grow-1 min-w-0">
+                <div class="kpi-label text-muted small text-uppercase fw-semibold">${label}</div>
+                <div class="kpi-value fw-bold">${Number(k.value).toLocaleString()}</div>
+                ${changeHtml}
               </div>
             </div>
           </div>
@@ -316,4 +566,5 @@ document.addEventListener("DOMContentLoaded", () => {
   HAD.initTheme();
   HAD.initSidebar();
   HAD.initChartResize();
+  HAD.initHeaderClock();
 });

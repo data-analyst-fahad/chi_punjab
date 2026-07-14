@@ -17,11 +17,9 @@ from dashboard.models import FactDailyHealthSummary
 DATE_PRESETS = {
     "all_time": "All Time",
     "today": "Today",
-    "yesterday": "Yesterday",
     "last_7_days": "Last 7 Days",
     "last_30_days": "Last 30 Days",
-    "this_month": "This Month",
-    "last_month": "Last Month",
+    "last_quarter": "Last Quarter",
     "custom": "Custom Date Range",
 }
 
@@ -75,6 +73,13 @@ def resolve_date_range(params: dict[str, Any]) -> DateRange:
         return DateRange(today - timedelta(days=6), today, preset)
     if preset == "last_30_days":
         return DateRange(today - timedelta(days=29), today, preset)
+    if preset == "last_quarter":
+        first_this_q_month = ((today.month - 1) // 3) * 3 + 1
+        this_q_start = date(today.year, first_this_q_month, 1)
+        last_q_end = this_q_start - timedelta(days=1)
+        last_q_start_month = ((last_q_end.month - 1) // 3) * 3 + 1
+        last_q_start = date(last_q_end.year, last_q_start_month, 1)
+        return DateRange(last_q_start, last_q_end, preset)
     if preset == "this_month":
         return DateRange(_month_start(today), today, preset)
     if preset == "last_month":
