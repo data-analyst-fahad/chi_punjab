@@ -319,7 +319,7 @@ const HAD = {
   },
 
   getFilterParams() {
-    const preset = document.getElementById("datePreset")?.value || "last_30_days";
+    const preset = document.getElementById("datePreset")?.value || "all_time";
     const params = new URLSearchParams();
     params.set("preset", preset);
     if (preset === "custom") {
@@ -334,7 +334,7 @@ const HAD = {
   resetFilters(onApply) {
     const presetEl = document.getElementById("datePreset");
     const districtEl = document.getElementById("districtFilter");
-    if (presetEl) presetEl.value = "last_30_days";
+    if (presetEl) presetEl.value = "all_time";
     if (districtEl) districtEl.value = "";
     document.getElementById("startDate").value = "";
     document.getElementById("endDate").value = "";

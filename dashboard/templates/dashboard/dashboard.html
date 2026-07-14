@@ -10,7 +10,7 @@
         <label class="form-label fw-semibold small text-uppercase text-muted mb-1" for="datePreset">Date Range</label>
         <select id="datePreset" class="form-select">
           {% for p in filter_options.presets %}
-          <option value="{{ p.value }}" {% if p.value == 'last_30_days' %}selected{% endif %}>{{ p.label }}</option>
+          <option value="{{ p.value }}" {% if p.value == 'all_time' %}selected{% endif %}>{{ p.label }}</option>
           {% endfor %}
         </select>
       </div>
