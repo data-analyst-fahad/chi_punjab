@@ -43,6 +43,9 @@ const DISTRICT_COORDS = {
   Sialkot: [32.4945, 74.5229],
   Sargodha: [32.0836, 72.6711],
   Bahawalpur: [29.3956, 71.6833],
+  Bahawalnagar: [29.9983, 73.2527],
+  "Dera Ghazi Khan": [30.0561, 70.6348],
+  Rajanpur: [29.1033, 70.3227],
   Sheikhupura: [31.7131, 73.9783],
   Jhang: [31.2682, 72.3181],
   Gujrat: [32.5742, 74.0754],
@@ -55,6 +58,16 @@ const DISTRICT_COORDS = {
   "Rahim Yar Khan": [28.4202, 70.2952],
   Muzaffargarh: [30.1575, 71.199],
   Khanewal: [30.3017, 71.9321],
+};
+
+const DISTRICT_COORD_ALIASES = {
+  "dg khan": "Dera Ghazi Khan",
+  "d.g. khan": "Dera Ghazi Khan",
+  "d g khan": "Dera Ghazi Khan",
+  "dera ghazi khan": "Dera Ghazi Khan",
+  bahawalnagar: "Bahawalnagar",
+  rajanpur: "Rajanpur",
+  "rahim yar khan": "Rahim Yar Khan",
 };
 
 const MEDALS = ["🥇", "🥈", "🥉", "4", "5"];
@@ -195,8 +208,25 @@ async function renderSectionCharts(charts) {
   });
 }
 
+function resolveDistrictCoords(name) {
+  const raw = (name || "").trim();
+  if (!raw) return null;
+
+  if (DISTRICT_COORDS[raw]) return DISTRICT_COORDS[raw];
+
+  const aliasKey = DISTRICT_COORD_ALIASES[raw.toLowerCase()];
+  if (aliasKey && DISTRICT_COORDS[aliasKey]) return DISTRICT_COORDS[aliasKey];
+
+  const lower = raw.toLowerCase();
+  for (const [key, coords] of Object.entries(DISTRICT_COORDS)) {
+    if (key.toLowerCase() === lower) return coords;
+  }
+  return null;
+}
+
 function districtCoords(name, index) {
-  if (DISTRICT_COORDS[name]) return DISTRICT_COORDS[name];
+  const resolved = resolveDistrictCoords(name);
+  if (resolved) return resolved;
   const angle = (index / 12) * Math.PI * 2;
   const r = 0.35 + (index % 5) * 0.08;
   return [PUNJAB_CENTER[0] + Math.sin(angle) * r, PUNJAB_CENTER[1] + Math.cos(angle) * r];
